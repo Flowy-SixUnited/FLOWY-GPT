@@ -2,7 +2,7 @@ import { ChatContext, ChatContextProvider } from '@/app/chat-context';
 import SideBar from '@/components/layout/side-bar';
 import FloatHelper from '@/new-components/layout/FloatHelper';
 import { STORAGE_LANG_KEY, STORAGE_USERINFO_KEY, STORAGE_USERINFO_VALID_TIME_KEY } from '@/utils/constants/index';
-import { App, ConfigProvider, MappingAlgorithm, theme } from 'antd';
+import { App, ConfigProvider, MappingAlgorithm, theme, Spin } from 'antd';
 import enUS from 'antd/locale/en_US';
 import zhCN from 'antd/locale/zh_CN';
 import classNames from 'classnames';
@@ -16,7 +16,7 @@ import '../nprogress.css';
 import '../styles/globals.css';
 // import TopProgressBar from '@/components/layout/top-progress-bar';
 
-const antdDarkTheme: MappingAlgorithm = (seedToken, mapToken) => {
+const antdDarkTheme: MappingAlgorithm = (seedToken: any, mapToken: any) => {
   return {
     ...theme.darkAlgorithm(seedToken, mapToken),
     colorBgBase: '#232734',
@@ -55,38 +55,58 @@ function CssWrapper({ children }: { children: React.ReactElement }) {
 function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const { isMenuExpand, mode } = useContext(ChatContext);
   const { i18n } = useTranslation();
-  const [isLogin, setIsLogin] = useState(false);
-
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
   const router = useRouter();
 
-  // 登录检测
-  const handleAuth = async () => {
-    setIsLogin(false);
-    // 如果已有登录信息，直接展示首页
-    // if (localStorage.getItem(STORAGE_USERINFO_KEY)) {
-    //   setIsLogin(true);
-    //   return;
-    // }
+  const AUTH_TOKEN_KEY = 'authToken';
+  const USER_INFO_KEY = 'userInfo';
 
-    // MOCK User info
-    const user = {
-      user_channel: `dbgpt`,
-      user_no: `001`,
-      nick_name: `dbgpt`,
-    };
-    if (user) {
-      localStorage.setItem(STORAGE_USERINFO_KEY, JSON.stringify(user));
-      localStorage.setItem(STORAGE_USERINFO_VALID_TIME_KEY, Date.now().toString());
-      setIsLogin(true);
-    }
-  };
-
+  // 检查认证状态
   useEffect(() => {
-    handleAuth();
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    if (token) {
+      // TODO: 可选但推荐 - 向后端发送请求验证token的有效性
+      // 如果验证通过:
+      setIsAuthenticated(true);
+      // 同步用户信息到旧的存储格式以保持兼容性
+      const userInfo = localStorage.getItem(USER_INFO_KEY);
+      if (userInfo && !localStorage.getItem(STORAGE_USERINFO_KEY)) {
+        const user = JSON.parse(userInfo);
+        // 转换为旧格式
+        const legacyUser = {
+          user_channel: user.username || 'dbgpt',
+          user_no: user.user_id || '001',
+          nick_name: user.nick_name || user.username || 'dbgpt',
+        };
+        localStorage.setItem(STORAGE_USERINFO_KEY, JSON.stringify(legacyUser));
+        localStorage.setItem(STORAGE_USERINFO_VALID_TIME_KEY, Date.now().toString());
+      }
+    } else {
+      setIsAuthenticated(false);
+    }
+    setAuthLoading(false);
   }, []);
 
-  if (!isLogin) {
-    return null;
+  // 路由保护
+  useEffect(() => {
+    if (!authLoading) {
+      if (!isAuthenticated && router.pathname !== '/login') {
+        router.push(`/login?redirect=${encodeURIComponent(router.asPath)}`);
+      } else if (isAuthenticated && router.pathname === '/login') {
+        // 如果已认证但试图访问登录页，则重定向到首页
+        router.push('/');
+      }
+    }
+  }, [authLoading, isAuthenticated, router.pathname, router.asPath, router]);
+
+  if (authLoading) {
+    return <Spin size="large" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }} />;
+  }
+
+  // 如果未认证且不是登录页，则显示加载状态 (因为会被重定向)
+  if (!isAuthenticated && router.pathname !== '/login') {
+    return <Spin size="large" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }} />;
   }
 
   const renderContent = () => {
@@ -98,17 +118,16 @@ function LayoutWrapper({ children }: { children: React.ReactNode }) {
         <Head>
           <meta name='viewport' content='initial-scale=1.0, width=device-width, maximum-scale=1' />
         </Head>
-        {router.pathname !== '/construct/app/extra' && (
+        {router.pathname !== '/construct/app/extra' && router.pathname !== '/login' && (
           <div className={classNames('transition-[width]', isMenuExpand ? 'w-60' : 'w-20', 'hidden', 'md:block')}>
             <SideBar />
           </div>
         )}
         <div className='flex flex-col flex-1 relative overflow-hidden'>{children}</div>
-        <FloatHelper />
+        {router.pathname !== '/login' && <FloatHelper />}
       </div>
     );
   };
-
   return (
     <ConfigProvider
       locale={i18n.language === 'en' ? enUS : zhCN}

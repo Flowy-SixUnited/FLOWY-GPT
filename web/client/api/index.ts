@@ -80,6 +80,7 @@ export const DELETE = <Params = any, Response = any, D = any>(
 };
 
 export * from './app';
+export * from './auth';
 export * from './chat';
 export * from './evaluate';
 export * from './flow';

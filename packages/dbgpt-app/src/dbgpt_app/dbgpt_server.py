@@ -56,6 +56,7 @@ def mount_routers(app: FastAPI):
     """Lazy import to avoid high time cost"""
     from dbgpt_app.knowledge.api import router as knowledge_router
     from dbgpt_app.openapi.api_v1.api_v1 import router as api_v1
+    from dbgpt_app.openapi.api_v1.auth_router import router as auth_router
     from dbgpt_app.openapi.api_v1.editor.api_editor_v1 import (
         router as api_editor_route_v1,
     )
@@ -64,6 +65,7 @@ def mount_routers(app: FastAPI):
     from dbgpt_serve.agent.app.controller import router as gpts_v1
     from dbgpt_serve.agent.app.endpoints import router as app_v2
 
+    app.include_router(auth_router, prefix="/api/v1", tags=["Authentication"])
     app.include_router(api_v1, prefix="/api", tags=["Chat"])
     app.include_router(api_v2, prefix="/api", tags=["ChatV2"])
     app.include_router(api_editor_route_v1, prefix="/api", tags=["Editor"])
